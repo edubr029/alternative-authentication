@@ -2,14 +2,13 @@ package one.ggsky.alternativeauth.mixin;
 
 import com.google.common.base.Strings;
 import com.google.common.collect.Iterables;
-import com.mojang.authlib.HttpAuthenticationService;
 import com.mojang.authlib.ProfileLookupCallback;
 import com.mojang.authlib.exceptions.MinecraftClientException;
 import com.mojang.authlib.minecraft.client.MinecraftClient;
-import com.mojang.authlib.yggdrasil.ProfileNotFoundException;
-import com.mojang.authlib.yggdrasil.YggdrasilGameProfileRepository;
-import com.mojang.authlib.yggdrasil.response.NameAndId;
-import com.mojang.authlib.yggdrasil.response.ProfileSearchResultsResponse;
+import com.mojang.authlib.services.MinecraftServicesProfileRepository;
+import com.mojang.authlib.services.ProfileNotFoundException;
+import com.mojang.authlib.services.response.NameAndId;
+import com.mojang.authlib.services.response.ProfileSearchResultsResponse;
 
 import one.ggsky.alternativeauth.config.AlternativeAuthConfig;
 import one.ggsky.alternativeauth.config.AlternativeAuthConfigManager;
@@ -31,19 +30,16 @@ import java.text.MessageFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 
-@Mixin(YggdrasilGameProfileRepository.class)
+@Mixin(MinecraftServicesProfileRepository.class)
 public class FindProfilesByNamesMixin {
     @Unique
     private static final AlternativeAuthLogger LOGGER = AlternativeAuthLoggerManager.getLogger();
-
-    @Unique
-    private static final AlternativeAuthConfig CONFIG = AlternativeAuthConfigManager.getConfig();
 
     @Shadow @Final
     private MinecraftClient client;
 
     @Unique
-    private static final int ENTRIES_PER_PAGE = 2;
+    private static final int ENTRIES_PER_PAGE = 10;
     @Unique
     private static final int MAX_FAIL_COUNT = 3;
     @Unique
@@ -62,7 +58,8 @@ public class FindProfilesByNamesMixin {
             .filter(name -> !Strings.isNullOrEmpty(name))
             .collect(Collectors.toSet());
 
-        final int page = 0;
+        final AlternativeAuthConfig config = AlternativeAuthConfigManager.getConfig();
+        int page = 0;
 
         for (final List<String> request : Iterables.partition(criteria, ENTRIES_PER_PAGE)) {
             final List<String> normalizedRequest = request.stream().map(AlternativeAuthUtils::normalizeName).toList();
@@ -74,41 +71,51 @@ public class FindProfilesByNamesMixin {
                 failed = false;
 
                 try {
-                    ProfileSearchResultsResponse response = null;
+                    final Map<String, NameAndId> profiles = new HashMap<>();
 
-                    for (AlternativeAuthProvider provider : CONFIG.getProviders()) {
-                        final URL url = HttpAuthenticationService.constantURL(provider.getProfilesUrl());
-                        response = client.post(url, normalizedRequest, ProfileSearchResultsResponse.class);
+                    for (AlternativeAuthProvider provider : config.getProviders()) {
+                        URL url;
 
-                        if (response != null && !response.profiles().isEmpty()) {
-                            LOGGER.debug(MessageFormat.format("Response from {0} provider is not null and contains at least 1 element", provider.getName()));
-                            break;
-                        } else {
+                        try {
+                            url = AlternativeAuthUtils.toUrl(provider.getProfilesUrl());
+                        } catch (IllegalArgumentException e) {
+                            LOGGER.error("Skipping provider " + provider.getName() + " with an invalid profilesUrl: " + e.getMessage());
+                            continue;
+                        }
+
+                        ProfileSearchResultsResponse response = client.post(url, normalizedRequest, ProfileSearchResultsResponse.class);
+
+                        if (response == null || response.profiles().isEmpty()) {
                             LOGGER.debug(MessageFormat.format("Response from {0} provider is either null or contains no elements", provider.getName()));
+                            continue;
+                        }
+
+                        LOGGER.debug(MessageFormat.format("Response from {0} provider is not null and contains at least 1 element", provider.getName()));
+
+                        for (final NameAndId profile : response.profiles()) {
+                            profiles.putIfAbsent(AlternativeAuthUtils.normalizeName(profile.name()), profile);
                         }
                     }
 
-                    final List<NameAndId> profiles = response != null ? response.profiles() : List.of();
                     failCount = 0;
 
                     LOGGER.debug(MessageFormat.format("Page {0} returned {1} results, parsing", page, profiles.size()));
 
-                    final Set<String> received = new HashSet<>(profiles.size());
-
-                    for (final NameAndId profile : profiles) {
+                    for (final NameAndId profile : profiles.values()) {
                         LOGGER.debug(MessageFormat.format("Successfully looked up profile {0}", profile));
-                        received.add(AlternativeAuthUtils.normalizeName(profile.name()));
                         callback.onProfileLookupSucceeded(profile.name(), profile.id());
                     }
 
                     for (final String name : request) {
-                        if (received.contains(AlternativeAuthUtils.normalizeName(name))) {
+                        if (profiles.containsKey(AlternativeAuthUtils.normalizeName(name))) {
                             continue;
                         }
 
                         LOGGER.debug(MessageFormat.format("Could not find profile {0}", name));
                         callback.onProfileLookupFailed(name, new ProfileNotFoundException("Server did not find the requested profile"));
                     }
+
+                    page++;
 
                     try {
                         Thread.sleep(DELAY_BETWEEN_PAGES);

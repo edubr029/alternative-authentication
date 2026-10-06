@@ -11,6 +11,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 
 import net.fabricmc.loader.api.FabricLoader;
 import one.ggsky.alternativeauth.AlternativeAuthentication;
@@ -42,7 +43,17 @@ public class AlternativeAuthConfigManager {
         try (FileReader reader = new FileReader(configFile)) {
             raw = gson.fromJson(reader, JsonObject.class);
         } catch (IOException e) {
-            LOGGER.warn("Failed to load config file: " + e.getMessage());
+            LOGGER.error("Failed to read config file: " + e.getMessage());
+            LOGGER.error("No authentication providers will be loaded, players won't be able to join until it is fixed");
+            return;
+        } catch (JsonParseException e) {
+            LOGGER.error("Config file contains invalid JSON: " + e.getMessage());
+            LOGGER.error("Fix or delete config/alternative-auth.json to regenerate it");
+            return;
+        }
+
+        if (raw == null) {
+            LOGGER.error("Config file is empty, delete config/alternative-auth.json to regenerate it");
             return;
         }
 

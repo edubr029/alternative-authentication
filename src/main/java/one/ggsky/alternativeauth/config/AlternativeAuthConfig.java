@@ -12,8 +12,8 @@ public class AlternativeAuthConfig {
         return configVersion != null ? configVersion : 0;
     }
 
-    public Boolean isDebugModeEnabled() {
-        return debugMode;
+    public boolean isDebugModeEnabled() {
+        return Boolean.TRUE.equals(debugMode);
     }
 
     public boolean isPreventFallbackIfPlayerExists() {

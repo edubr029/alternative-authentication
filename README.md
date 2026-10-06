@@ -78,7 +78,7 @@ The ordered list of authentication providers. Each entry supports the following 
             "checkUrl": "https://authserver.ely.by/session/hasJoined",
             "profileUrl": "https://authserver.ely.by/api/users/profiles/minecraft/",
             "profilesUrl": "https://authserver.ely.by/api/profiles/minecraft",
-            "propertyUrl": "http://skinsystem.ely.by/textures/signed/{0}"
+            "propertyUrl": "https://skinsystem.ely.by/textures/signed/{0}"
         }
     ]
 }

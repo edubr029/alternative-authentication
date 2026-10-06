@@ -26,6 +26,10 @@ public class AlternativeAuthLogger {
         logger.warn(message);
     }
 
+    public void error(String message) {
+        logger.error(message);
+    }
+
     public void debug(String message) {
         if (debugMode) {
             logger.info(message);

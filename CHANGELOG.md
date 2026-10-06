@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [1.4.0] - 2026-10-06
+
+- Updated to support Minecraft 26.3.
+- Bumped Fabric Loader to 0.19.5 and Fabric API to 0.162.0+26.3.
+- Fixed a crash when the config file is empty or contains invalid JSON, it now logs a clear error instead.
+- Fixed an unhandled exception when a provider has a malformed `checkUrl` or `profilesUrl`, the provider is now skipped with an error message.
+- Fixed whitelist lookups skipping providers without a `profileUrl` instead of producing a broken request.
+- Batch profile lookups now consult every provider for each page instead of stopping at the first non-empty response, so names that only exist on fallback providers are no longer missed.
+- Increased the batch lookup page size from 2 to 10 names per request.
+- Skin properties now fall back to the session response when a provider's texture endpoint fails or returns no properties.
+- The default Ely.by `propertyUrl` now uses HTTPS.
+- Moved server-side mixins to the `server` mixin section.
+- Internal refactors and improvements.
+
+---
+
 ## [1.3.2] - 2026-06-22
 
 - Added `DedicatedServerMixin` to override `enforceSecureProfile` to `false`, fixing chat being disabled for all players when `ChatSessionUpdateMixin` is active.
